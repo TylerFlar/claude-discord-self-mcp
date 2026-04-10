@@ -1,42 +1,45 @@
 # claude-discord-self-mcp
 
-A comprehensive MCP (Model Context Protocol) server that gives Claude Code full access to Discord through a user account (selfbot). Provides 64 tools across 15 categories covering messages, DMs, servers, channels, threads, moderation, and more.
+MCP server that gives Claude Code (and Claude Desktop) full Discord selfbot capabilities via a user account token and the Model Context Protocol.
 
-> **Warning:** Using selfbots violates Discord's Terms of Service. Your account may be suspended or terminated. Use at your own risk for personal use only.
+> **⚠️ Disclaimer** — This project uses `discord.js-selfbot-v13` to log in as a **user account**, which violates [Discord's Terms of Service](https://discord.com/terms). Your account may be suspended or terminated. Use at your own risk for personal/educational purposes only.
+
+## Architecture
+
+The server exposes 71 MCP tools across 15 categories, wrapping the `discord.js-selfbot-v13` library. It communicates over **stdio** transport using `@modelcontextprotocol/sdk`. Authentication is handled by passing a Discord **user token** via the `DISCORD_TOKEN` environment variable — the server logs in once and maintains a singleton `Client` instance for the lifetime of the process. All Discord API calls go through discord.js abstractions (no raw HTTP).
+
+## Prerequisites
+
+- Node.js >= 18
+- A Discord user account token ([how to obtain](#2-environment-variables))
 
 ## Setup
 
-### 1. Install dependencies
+### 1. Install & Build
 
 ```bash
 npm install
-```
-
-### 2. Build
-
-```bash
 npm run build
 ```
 
-### 3. Get your Discord token
+### 2. Environment Variables
 
-1. Open Discord in a browser
-2. Press `F12` to open DevTools
-3. Go to the **Network** tab
-4. Send a message or perform any action
-5. Find a request to `discord.com/api`
-6. Copy the `Authorization` header value — that's your user token
+Create a `.env` file or pass directly in the MCP config:
 
-### 4. Configure in Claude Code
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `DISCORD_TOKEN` | Yes | Discord user account token. Open Discord in a browser → F12 → Network tab → find any request to `discord.com/api` → copy the `Authorization` header value. |
 
-Add to your Claude Code MCP settings (`claude_desktop_config.json` or project settings):
+### 3. MCP Client Configuration
+
+**Claude Code** (`.claude.json` or project MCP settings):
 
 ```json
 {
   "mcpServers": {
     "discord": {
       "command": "node",
-      "args": ["/path/to/claude-discord-self-mcp/dist/index.js"],
+      "args": ["/absolute/path/to/claude-discord-self-mcp/dist/index.js"],
       "env": {
         "DISCORD_TOKEN": "your_discord_user_token_here"
       }
@@ -45,152 +48,204 @@ Add to your Claude Code MCP settings (`claude_desktop_config.json` or project se
 }
 ```
 
-## Tools
+**Claude Desktop** (`claude_desktop_config.json`):
+
+```json
+{
+  "mcpServers": {
+    "discord": {
+      "command": "node",
+      "args": ["/absolute/path/to/claude-discord-self-mcp/dist/index.js"],
+      "env": {
+        "DISCORD_TOKEN": "your_discord_user_token_here"
+      }
+    }
+  }
+}
+```
+
+## Tools Reference
 
 ### Messages (9 tools)
-| Tool | Description |
-|---|---|
-| `discord_send_message` | Send a message to a channel |
-| `discord_read_messages` | Read recent messages from a channel |
-| `discord_edit_message` | Edit one of your own messages |
-| `discord_delete_message` | Delete a message |
-| `discord_reply_to_message` | Reply to a specific message |
-| `discord_pin_message` | Pin a message |
-| `discord_unpin_message` | Unpin a message |
-| `discord_get_pinned_messages` | List all pinned messages |
-| `discord_search_messages` | Search messages in a server |
+
+| Tool | Parameters | Description |
+|------|-----------|-------------|
+| `discord_send_message` | `channelId: string, content: string` | Send a message to a channel |
+| `discord_read_messages` | `channelId: string, limit?: number, before?: string, after?: string` | Read recent messages from a channel (default 25, max 100) |
+| `discord_edit_message` | `channelId: string, messageId: string, content: string` | Edit one of your own messages |
+| `discord_delete_message` | `channelId: string, messageId: string` | Delete a message in a channel |
+| `discord_reply_to_message` | `channelId: string, messageId: string, content: string, mention?: boolean` | Reply to a specific message (mention defaults to true) |
+| `discord_pin_message` | `channelId: string, messageId: string` | Pin a message in a channel |
+| `discord_unpin_message` | `channelId: string, messageId: string` | Unpin a message in a channel |
+| `discord_get_pinned_messages` | `channelId: string` | Get all pinned messages in a channel |
+| `discord_search_messages` | `guildId: string, query: string, authorId?: string, channelId?: string, has?: "link"\|"embed"\|"file"\|"video"\|"image"\|"sound"\|"sticker", limit?: number` | Search messages in a server (default 25, max 100) |
 
 ### DMs (4 tools)
-| Tool | Description |
-|---|---|
-| `discord_open_dm` | Open or get a DM channel with a user |
-| `discord_list_dms` | List recent DM channels |
-| `discord_read_dm_history` | Read DM message history |
-| `discord_send_dm` | Send a direct message |
+
+| Tool | Parameters | Description |
+|------|-----------|-------------|
+| `discord_open_dm` | `userId: string` | Open or get an existing DM channel with a user |
+| `discord_list_dms` | `limit?: number` | List recent DM channels (default 20, max 100) |
+| `discord_read_dm_history` | `userId: string, limit?: number, before?: string` | Read message history from a DM (default 25, max 100) |
+| `discord_send_dm` | `userId: string, content: string` | Send a direct message to a user |
 
 ### Servers (5 tools)
-| Tool | Description |
-|---|---|
-| `discord_list_guilds` | List all servers |
-| `discord_guild_info` | Get server details |
-| `discord_list_members` | List server members |
-| `discord_search_members` | Search members by name |
-| `discord_leave_guild` | Leave a server |
+
+| Tool | Parameters | Description |
+|------|-----------|-------------|
+| `discord_list_guilds` | *(none)* | List all servers the account is in |
+| `discord_guild_info` | `guildId: string` | Get detailed information about a server |
+| `discord_list_members` | `guildId: string, limit?: number, after?: string` | List server members (default 50, max 100) |
+| `discord_search_members` | `guildId: string, query: string, limit?: number` | Search members by username or nickname (default 20, max 100) |
+| `discord_leave_guild` | `guildId: string` | Leave a server |
 
 ### Channels (6 tools)
-| Tool | Description |
-|---|---|
-| `discord_list_channels` | List all channels in a server |
-| `discord_channel_info` | Get channel details |
-| `discord_create_channel` | Create a text/voice/category channel |
-| `discord_edit_channel` | Edit channel properties |
-| `discord_delete_channel` | Delete a channel |
-| `discord_set_channel_permissions` | Set permission overwrites |
+
+| Tool | Parameters | Description |
+|------|-----------|-------------|
+| `discord_list_channels` | `guildId: string` | List all channels in a server |
+| `discord_channel_info` | `channelId: string` | Get detailed information about a channel |
+| `discord_create_channel` | `guildId: string, name: string, type?: "GUILD_TEXT"\|"GUILD_VOICE"\|"GUILD_CATEGORY", parentId?: string, topic?: string` | Create a new channel (defaults to text) |
+| `discord_edit_channel` | `channelId: string, name?: string, topic?: string, nsfw?: boolean, slowmode?: number` | Edit channel properties (slowmode 0-21600s) |
+| `discord_delete_channel` | `channelId: string` | Delete a channel |
+| `discord_set_channel_permissions` | `channelId: string, targetId: string, targetType: "role"\|"member", allow?: string, deny?: string` | Set permission overwrite for a role or user |
 
 ### Threads (6 tools)
-| Tool | Description |
-|---|---|
-| `discord_create_thread` | Create a thread (standalone or from message) |
-| `discord_list_threads` | List active threads |
-| `discord_list_archived_threads` | List archived threads |
-| `discord_join_thread` | Join a thread |
-| `discord_leave_thread` | Leave a thread |
-| `discord_archive_thread` | Archive/lock a thread |
+
+| Tool | Parameters | Description |
+|------|-----------|-------------|
+| `discord_create_thread` | `channelId: string, name: string, messageId?: string, autoArchiveDuration?: "60"\|"1440"\|"4320"\|"10080"` | Create a thread (optionally from a message, default archive 1440m) |
+| `discord_list_threads` | `channelId: string` | List active threads in a channel |
+| `discord_list_archived_threads` | `channelId: string, type?: "public"\|"private", limit?: number` | List archived threads (default public, max 100) |
+| `discord_join_thread` | `threadId: string` | Join a thread |
+| `discord_leave_thread` | `threadId: string` | Leave a thread |
+| `discord_archive_thread` | `threadId: string, locked?: boolean` | Archive and optionally lock a thread |
 
 ### Reactions (4 tools)
-| Tool | Description |
-|---|---|
-| `discord_add_reaction` | Add a reaction to a message |
-| `discord_remove_reaction` | Remove your reaction |
-| `discord_list_reactions` | List users who reacted |
-| `discord_clear_reactions` | Remove all reactions |
+
+| Tool | Parameters | Description |
+|------|-----------|-------------|
+| `discord_add_reaction` | `channelId: string, messageId: string, emoji: string` | Add a reaction (unicode emoji or `name:id` for custom) |
+| `discord_remove_reaction` | `channelId: string, messageId: string, emoji: string` | Remove your reaction from a message |
+| `discord_list_reactions` | `channelId: string, messageId: string, emoji: string, limit?: number` | List users who reacted with an emoji (default 25, max 100) |
+| `discord_clear_reactions` | `channelId: string, messageId: string` | Remove all reactions from a message |
 
 ### Users (7 tools)
-| Tool | Description |
-|---|---|
-| `discord_user_info` | Get user info by ID |
-| `discord_my_profile` | Get your own profile |
-| `discord_list_friends` | List all friends |
-| `discord_list_blocked` | List blocked users |
-| `discord_send_friend_request` | Send a friend request |
-| `discord_remove_friend` | Remove a friend |
-| `discord_guild_member_info` | Get member's server profile |
+
+| Tool | Parameters | Description |
+|------|-----------|-------------|
+| `discord_user_info` | `userId: string` | Get information about a user by ID |
+| `discord_my_profile` | *(none)* | Get the authenticated user's profile |
+| `discord_list_friends` | *(none)* | List all friends/relationships |
+| `discord_list_blocked` | *(none)* | List all blocked users |
+| `discord_send_friend_request` | `userId: string` | Send a friend request |
+| `discord_remove_friend` | `userId: string` | Remove a friend or cancel a request |
+| `discord_guild_member_info` | `guildId: string, userId: string` | Get a user's server-specific profile (nickname, roles, join date) |
 
 ### Roles (6 tools)
-| Tool | Description |
-|---|---|
-| `discord_list_roles` | List all roles in a server |
-| `discord_role_info` | Get role details |
-| `discord_assign_role` | Add a role to a member |
-| `discord_remove_role` | Remove a role from a member |
-| `discord_create_role` | Create a new role |
-| `discord_delete_role` | Delete a role |
+
+| Tool | Parameters | Description |
+|------|-----------|-------------|
+| `discord_list_roles` | `guildId: string` | List all roles in a server |
+| `discord_role_info` | `guildId: string, roleId: string` | Get detailed information about a role |
+| `discord_assign_role` | `guildId: string, userId: string, roleId: string` | Add a role to a member |
+| `discord_remove_role` | `guildId: string, userId: string, roleId: string` | Remove a role from a member |
+| `discord_create_role` | `guildId: string, name: string, color?: string, permissions?: string, mentionable?: boolean, hoist?: boolean` | Create a new role (color as hex e.g. `#ff0000`) |
+| `discord_delete_role` | `guildId: string, roleId: string` | Delete a role |
 
 ### Moderation (7 tools)
-| Tool | Description |
-|---|---|
-| `discord_kick_member` | Kick a member |
-| `discord_ban_member` | Ban a member |
-| `discord_unban_member` | Unban a user |
-| `discord_timeout_member` | Timeout/mute a member |
-| `discord_remove_timeout` | Remove a timeout |
-| `discord_purge_messages` | Bulk delete messages |
-| `discord_list_bans` | List banned users |
+
+| Tool | Parameters | Description |
+|------|-----------|-------------|
+| `discord_kick_member` | `guildId: string, userId: string, reason?: string` | Kick a member from a server |
+| `discord_ban_member` | `guildId: string, userId: string, reason?: string, deleteMessageDays?: number` | Ban a member (deleteMessageDays 0-7, default 0) |
+| `discord_unban_member` | `guildId: string, userId: string` | Unban a user |
+| `discord_timeout_member` | `guildId: string, userId: string, duration: number, reason?: string` | Timeout a member (duration in seconds, max 28 days) |
+| `discord_remove_timeout` | `guildId: string, userId: string` | Remove timeout from a member |
+| `discord_purge_messages` | `channelId: string, count: number, userId?: string` | Bulk delete messages (2-100, max 14 days old) |
+| `discord_list_bans` | `guildId: string, limit?: number` | List banned users (default 100, max 1000) |
 
 ### Presence (4 tools)
-| Tool | Description |
-|---|---|
-| `discord_set_status` | Set online/idle/dnd/invisible |
-| `discord_set_custom_status` | Set custom status text/emoji |
-| `discord_set_activity` | Set playing/streaming/listening/watching |
-| `discord_clear_activity` | Clear all activities |
+
+| Tool | Parameters | Description |
+|------|-----------|-------------|
+| `discord_set_status` | `status: "online"\|"idle"\|"dnd"\|"invisible"` | Set your online status |
+| `discord_set_custom_status` | `text?: string, emoji?: string, expiresAt?: string` | Set custom status text/emoji (expiresAt as ISO timestamp) |
+| `discord_set_activity` | `type: "PLAYING"\|"STREAMING"\|"LISTENING"\|"WATCHING"\|"COMPETING", name: string, url?: string` | Set an activity (url for streaming type) |
+| `discord_clear_activity` | *(none)* | Clear all activities and custom status |
 
 ### Invites (4 tools)
-| Tool | Description |
-|---|---|
-| `discord_create_invite` | Create a channel invite |
-| `discord_list_invites` | List server invites |
-| `discord_delete_invite` | Revoke an invite |
-| `discord_accept_invite` | Join a server via invite |
 
-### Webhooks (4 tools)
-| Tool | Description |
-|---|---|
-| `discord_list_webhooks` | List webhooks |
-| `discord_create_webhook` | Create a webhook |
-| `discord_send_webhook` | Send a message via webhook |
-| `discord_delete_webhook` | Delete a webhook |
+| Tool | Parameters | Description |
+|------|-----------|-------------|
+| `discord_create_invite` | `channelId: string, maxAge?: number, maxUses?: number, temporary?: boolean` | Create an invite (maxAge in seconds, 0=permanent, default 86400) |
+| `discord_list_invites` | `guildId: string` | List all invites for a server |
+| `discord_delete_invite` | `code: string` | Revoke an invite by code |
+| `discord_accept_invite` | `code: string` | Join a server via invite code |
+
+### Webhooks (5 tools)
+
+| Tool | Parameters | Description |
+|------|-----------|-------------|
+| `discord_list_webhooks` | `channelId?: string, guildId?: string` | List webhooks for a channel or guild |
+| `discord_create_webhook` | `channelId: string, name: string, avatar?: string` | Create a webhook (avatar as image URL) |
+| `discord_send_webhook` | `webhookId: string, webhookToken: string, content?: string, username?: string, avatarUrl?: string, embeds?: array` | Send a message via webhook |
+| `discord_delete_webhook` | `webhookId: string` | Delete a webhook |
 
 ### Emojis & Stickers (2 tools)
-| Tool | Description |
-|---|---|
-| `discord_list_emojis` | List custom server emojis |
-| `discord_list_stickers` | List server stickers |
+
+| Tool | Parameters | Description |
+|------|-----------|-------------|
+| `discord_list_emojis` | `guildId: string` | List all custom emojis in a server |
+| `discord_list_stickers` | `guildId: string` | List all stickers in a server |
 
 ### Attachments (2 tools)
-| Tool | Description |
-|---|---|
-| `discord_send_attachment` | Send a file by URL |
-| `discord_send_embed` | Send a rich embed message |
+
+| Tool | Parameters | Description |
+|------|-----------|-------------|
+| `discord_send_attachment` | `channelId: string, url: string, filename?: string, content?: string` | Send a file to a channel by URL |
+| `discord_send_embed` | `channelId: string, title?: string, description?: string, color?: string, fields?: array, imageUrl?: string, thumbnailUrl?: string, footerText?: string, url?: string` | Send a rich embed message |
 
 ### Voice (1 tool)
-| Tool | Description |
-|---|---|
-| `discord_list_voice_members` | List members in a voice channel |
+
+| Tool | Parameters | Description |
+|------|-----------|-------------|
+| `discord_list_voice_members` | `channelId: string` | List members currently in a voice channel |
+
+## Internal API Layer
+
+### `getClient()` (src/client.ts)
+
+- **Purpose**: Singleton factory for the Discord selfbot client
+- **Auth flow**: Reads `DISCORD_TOKEN` from env, calls `client.login(token)`, resolves on the `ready` event. The promise is cached — subsequent calls return the same client.
+- **Error handling**: Resets the cached promise to `null` on login failure or client error, allowing re-initialization on next call. No retry logic — errors propagate directly to tool handlers.
+
+### Helper utilities (src/helpers.ts)
+
+- `toolResult(data)` — Wraps any value as a JSON text MCP response
+- `toolError(error)` — Wraps an error as an MCP error response with `isError: true`
+- `formatMessage(msg)` — Serializes a Discord Message to `{id, author, content, timestamp, editedAt, attachments, embeds, reactions, referencedMessageId, pinned, type}`
+- `formatChannel(ch)` — Serializes a Channel to `{id, type, name, topic, parentId, nsfw, slowmode, position}`
+- `formatGuild(guild)` — Serializes a Guild to `{id, name, icon, ownerId, memberCount, description, features, createdAt}`
+- `formatMember(member)` — Serializes a GuildMember to `{userId, username, discriminator, nickname, roles, joinedAt, premiumSince, avatar}`
+- `formatRole(role)` — Serializes a Role to `{id, name, color, position, permissions, mentionable, hoist, managed, memberCount}`
+- `formatUser(user)` — Serializes a User to `{id, username, discriminator, avatar, bot, createdAt, banner}`
 
 ## Development
 
 ```bash
-# Run in dev mode (no build needed)
-npm run dev
-
-# Build for production
-npm run build
-
-# Run built version
-npm start
+npm run dev    # Run with tsx (no build needed)
+npm run build  # Compile TypeScript to dist/
+npm start      # Run compiled dist/index.js
 ```
+
+## Security Considerations
+
+- **Token storage**: The Discord user token grants full access to the account. Treat it like a password — do not commit it to version control.
+- **Account access**: The server can read/send messages, manage servers, modify roles, ban users, and access DMs and friend lists — anything the account can do.
+- **No rate limiting**: The server does not implement its own rate limiting. Discord's built-in rate limits apply via discord.js, but aggressive usage may flag the account.
+- **TOS risk**: Selfbots violate Discord's Terms of Service. Accounts using this tool may be terminated without warning.
 
 ## License
 
-MIT
+MIT — Copyright (c) 2026 TylerFlar
