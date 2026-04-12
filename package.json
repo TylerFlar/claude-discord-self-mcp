@@ -1,18 +1,16 @@
 {
-  "name": "claude-discord-self-mcp",
-  "version": "0.1.0",
-  "description": "MCP server giving Claude Code full Discord selfbot capabilities",
-  "license": "MIT",
+  "name": "@tasque/discord-self-mcp",
+  "version": "1.0.0",
   "type": "module",
-  "main": "dist/index.js",
-  "bin": {
-    "claude-discord-self-mcp": "dist/index.js"
-  },
   "scripts": {
     "build": "tsc",
-    "dev": "tsx src/index.ts",
-    "start": "node dist/index.js"
+    "start": "node dist/index.js",
+    "dev": "tsc --watch"
   },
+  "engines": {
+    "node": ">=22"
+  },
+  "license": "MIT",
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",
     "discord.js-selfbot-v13": "^3.7.1",
@@ -20,7 +18,6 @@
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
-    "tsx": "^4.0.0",
     "typescript": "^5.7.0"
   }
 }
