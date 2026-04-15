@@ -25,25 +25,53 @@ export function registerDmTools(server: McpServer) {
 
   server.tool(
     "discord_list_dms",
-    "List recent DM channels",
-    { limit: z.number().min(1).max(100).default(20).optional() },
-    async ({ limit }) => {
+    "List DM channels (live from API, includes group DMs)",
+    {
+      limit: z.number().min(1).max(200).default(50).optional(),
+      refresh: z.boolean().default(true).optional().describe("If true, fetch live from API instead of cache"),
+    },
+    async ({ limit, refresh }) => {
       try {
         const client = await getClient();
-        const dms = client.channels.cache
-          .filter((ch) => ch.type === "DM")
-          .map((ch) => {
-            const dm = ch as any;
-            return {
-              channelId: dm.id,
-              recipient: dm.recipient
-                ? { id: dm.recipient.id, username: dm.recipient.username, discriminator: dm.recipient.discriminator }
-                : null,
-              lastMessageId: dm.lastMessageId,
-            };
-          })
-          .slice(0, limit ?? 20);
-        return toolResult(dms);
+        let channels: any[];
+        if (refresh ?? true) {
+          const raw = await (client as any).api.users("@me").channels.get();
+          channels = Array.isArray(raw) ? raw : [];
+        } else {
+          channels = client.channels.cache
+            .filter((ch) => ch.type === "DM" || ch.type === "GROUP_DM")
+            .map((ch) => {
+              const dm = ch as any;
+              return {
+                id: dm.id,
+                type: dm.type === "GROUP_DM" ? 3 : 1,
+                recipients: dm.recipient
+                  ? [{ id: dm.recipient.id, username: dm.recipient.username, discriminator: dm.recipient.discriminator }]
+                  : dm.recipients
+                  ? dm.recipients.map((r: any) => ({ id: r.id, username: r.username, discriminator: r.discriminator }))
+                  : [],
+                last_message_id: dm.lastMessageId,
+                name: dm.name,
+              };
+            });
+        }
+
+        const formatted = channels
+          .map((c: any) => ({
+            channelId: c.id,
+            type: c.type === 3 ? "GROUP_DM" : "DM",
+            name: c.name ?? null,
+            recipients: (c.recipients ?? []).map((r: any) => ({
+              id: r.id,
+              username: r.username,
+              discriminator: r.discriminator,
+              globalName: r.global_name,
+            })),
+            lastMessageId: c.last_message_id ?? null,
+          }))
+          .slice(0, limit ?? 50);
+
+        return toolResult(formatted);
       } catch (e) {
         return toolError(e);
       }

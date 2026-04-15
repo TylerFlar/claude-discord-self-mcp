@@ -14,11 +14,14 @@ import { registerWebhookTools } from "./tools/webhooks.js";
 import { registerEmojiTools } from "./tools/emojis.js";
 import { registerAttachmentTools } from "./tools/attachments.js";
 import { registerVoiceTools } from "./tools/voice.js";
+import { registerScanTools } from "./tools/scan.js";
+import { registerForumTools } from "./tools/forums.js";
+import { registerEventTools, startEventBus } from "./events.js";
 
 export function createServer(): McpServer {
   const server = new McpServer({
     name: "claude-discord-self-mcp",
-    version: "0.1.0",
+    version: "0.2.0",
   });
 
   registerMessageTools(server);
@@ -36,6 +39,13 @@ export function createServer(): McpServer {
   registerEmojiTools(server);
   registerAttachmentTools(server);
   registerVoiceTools(server);
+  registerScanTools(server);
+  registerForumTools(server);
+  registerEventTools(server);
+
+  startEventBus(server).catch((err) => {
+    console.error("[discord-mcp] event bus failed to start:", err);
+  });
 
   return server;
 }
